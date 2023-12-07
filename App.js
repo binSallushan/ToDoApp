@@ -6,13 +6,12 @@ export default function App() {
   const [updatedText, setText] = useState('');  
   const [pendingTask, setPendingTask] = useState(false);    
 
-  /*
   const pan = useRef(new Animated.ValueXY()).current;
 
   const panResponder = useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: Animated.event([null, {dx: pan.x, dy: pan.y}]),
+      onPanResponderMove: Animated.event([null, {dx: pan.x, dy: pan.y}], {useNativeDriver: true}),
       onPanResponderRelease: () => {
         Animated.spring(pan, {
           toValue: {x: 0, y: 0},
@@ -21,18 +20,14 @@ export default function App() {
       },
     }),
   ).current;
-  */
 
-
-
-  
   function modalAddTask(){           
     return(
       <View style={styles.addTaskContainer}>
 
         <Text style={{fontWeight: 'bold', right: "-28%", top: "5%", fontSize: 17.5}}>Input task</Text>
 
-        <TextInput style={styles.taskInput} placeholder='NewTask' onChangeText={newText => setText(newText)}></TextInput>
+        <TextInput style={styles.taskInput} placeholder='NewTask' onChangeText={newText => setText(newText)} autoFocus={true}></TextInput>
 
 
         <View style={styles.buttonsContainer}>
@@ -60,6 +55,27 @@ export default function App() {
     }    
   }
 
+  function renderItem({item}){
+    return(        
+      <View style={styles.listItemBorderStyle}> 
+        <TouchableOpacity style={styles.radioButton} onPress={() => radioButtonPressed({item})} activeOpacity={0.2}>
+          {item.isCompleted ? <View style={styles.radioButtonPressed}></View> : null}
+        </TouchableOpacity>
+        <Text style={styles.listItemNameStyle}>{item.title}</Text>     
+      </View>          
+    );
+
+  }
+
+  function radioButtonPressed({item}){
+    const indexToRemove = allTasks.indexOf(item);
+    allTasks[indexToRemove].isCompleted = !allTasks[indexToRemove].isCompleted;
+    const updatedTasks = [...allTasks];
+    
+    setAllTasks(updatedTasks);  
+  }
+
+
   return (
     <View style={styles.container}>                        
 
@@ -77,67 +93,12 @@ export default function App() {
 
       {pendingTask ? modalAddTask() : null}
       
-      <ListAllTasks allTasks={allTasks} setAllTasks={setAllTasks} setText={setText} textName={updatedText} style={styles.listStyle}/>
+      <FlatList style={styles.listStyle} data={allTasks} renderItem={({item}) => renderItem({item})} ></FlatList>    
       
       
     </View>
   );
 }
-
-const renderItem = ({item, setAllTasks, allTasks, setText, textName}) => {  
-  
-
-  const handleTextSubmit = ({text}) =>{
-    console.log(text);
-    console.log("Before editing");
-    console.log(allTasks);
-
-    item.title = text;
-    console.log("after editing");
-    console.log(allTasks);
-    const newList = [...allTasks];    
-    setAllTasks(newList);
-  }
-
-  const renderText = () =>{
-    
-    if (item.title !== ""){
-      return(
-        <Text style={styles.listItemNameStyle}>{item.title}</Text>  
-      );
-    }else{
-      
-      return(
-        <TextInput style={styles.listItemNameStyle} autoFocus={true} onChangeText={(newText) => setText(newText)} onSubmitEditing={() => handleTextSubmit({textName})}/>
-      );
-    }
-  }
-
-  return(    
-      <View style={styles.listItemBorderStyle}> 
-        <TouchableOpacity style={styles.radioButton} onPress={() => radioButtonPressed({item, allTasks, setAllTasks})} activeOpacity={0.2}>
-          {item.isCompleted ? <View style={styles.radioButtonPressed}></View> : null}
-        </TouchableOpacity>
-        {renderText()}
-      </View>      
-  );
-}
-
-function radioButtonPressed({item, allTasks, setAllTasks}){
-  
-  const indexToRemove = allTasks.indexOf(item);
-  allTasks[indexToRemove].isCompleted = !allTasks[indexToRemove].isCompleted;
-  const updatedTasks = [...allTasks];
-  
-  setAllTasks(updatedTasks);  
-}
-
-const ListAllTasks = ({allTasks, setAllTasks, setText, textName, style}) =>{        
-  return(    
-      <FlatList style={style} data={allTasks} renderItem={({item}) => renderItem({item, setAllTasks, allTasks, setText, textName})} ></FlatList>    
-  );
-};
-
 
 const styles = StyleSheet.create({
   container: {    
