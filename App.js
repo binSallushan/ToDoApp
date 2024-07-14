@@ -1,34 +1,66 @@
-import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, Animated, PanResponder} from 'react-native';
-import { useState, useRef } from 'react';
+import { StyleSheet, Text, View, FlatList, TouchableOpacity, TextInput, Animated, PanResponder, Touchable} from 'react-native';
+import { useState, useRef, useEffect } from 'react';
+import axios, { all } from 'axios';
 
-export default function App() {  
-  const [allTasks, setAllTasks] = useState([{title: "Eating", isCompleted: true}, {title: "Study", isCompleted: true}, {title: "Walking", isCompleted: false}, {title: "Sleeping", isCompleted: true}]);    
+export default function App() {    
+  const [allTasks, setAllTasks] = useState([]);    
   const [updatedText, setText] = useState('');  
-  const [pendingTask, setPendingTask] = useState(false);    
+  const [pendingTask, setPendingTask] = useState(false);       
+  const [tasksLength, setTasksLength] = useState(allTasks.length);
+  getTasksStoredInServer();
+  console.log("alltasks as application starts", allTasks);   
+  console.log(tasksLength)      
 
-  const pan = useRef(new Animated.ValueXY()).current;
+ async function getTasksStoredInServer(){
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderMove: Animated.event([null, {dx: pan.x, dy: pan.y}], {useNativeDriver: true}),
-      onPanResponderRelease: () => {
-        Animated.spring(pan, {
-          toValue: {x: 0, y: 0},
-          useNativeDriver: true,
-        }).start();
-      },
-    }),
-  ).current;
+  function compareObjects(item1, item2){
+    return (item1.id === item2.id) && (item1.name === item2.name) && (item1.isCompleted === item2.isCompleted);
+  }
 
-  function modalAddTask(){           
+  function compareItemWithArray(item, array) {
+    for (let i = 0; i < array.length; i++) {
+      if (compareObjects(item, array[i])) {
+        return true; // Found a match
+      }
+    }
+    return false; // No match found
+  }
+  
+  try{
+    const response = await axios.get("http://localhost:8587/GetAllTodoItems");
+
+    let refresh = false;
+    
+    if (response.data.length !== allTasks.length){
+      refresh = true;
+    }else{
+      allTasks.forEach((item) => {
+        if (compareItemWithArray(item, response.data) === false){
+          refresh = true;
+        }
+      });
+    }
+
+    console.log("refresh screen", refresh);
+    
+    if (refresh)
+    {      
+      setAllTasks(response.data);          
+      setTasksLength(allTasks.length);
+      console.log("all tasks when refreshed", response.data);
+    }    
+  }catch (error) {
+    console.log('Error fetching data:', error);
+  }  
+ }
+ 
+ function modalAddTask(){
     return(
       <View style={styles.addTaskContainer}>
 
         <Text style={{fontWeight: 'bold', right: "-28%", top: "5%", fontSize: 17.5}}>Input task</Text>
 
         <TextInput style={styles.taskInput} placeholder='NewTask' onChangeText={newText => setText(newText)} autoFocus={true}></TextInput>
-
 
         <View style={styles.buttonsContainer}>
         <TouchableOpacity style={styles.cancelButton} onPress={() => {setPendingTask(false); setText('')}}>
@@ -43,38 +75,90 @@ export default function App() {
     );        
   };  
 
-  function okButtonPressed(){
+  async function okButtonPressed(){
     if (updatedText === ''){
       setPendingTask(false);
     }else
-    {
-      const newTasks = [...allTasks, {title: updatedText, isCompleted: false}];      
+    {      
+      const url = "http://localhost:8587/AddToDoItem?name=" + updatedText;
+      var response = await fetch("http://localhost:8587/AddToDoItem", 
+                              {method: "POST", 
+                              headers: {"Accept":"application/json", "Content-Type":"application/json"}, 
+                              body: JSON.stringify(updatedText)
+                              });      
       setText('');
-      setPendingTask(false);
-      setAllTasks(newTasks);
+      setPendingTask(false);      
     }    
   }
 
-  function renderItem({item}){
-    return(        
-      <View style={styles.listItemBorderStyle}> 
-        <TouchableOpacity style={styles.radioButton} onPress={() => radioButtonPressed({item})} activeOpacity={0.2}>
-          {item.isCompleted ? <View style={styles.radioButtonPressed}></View> : null}
-        </TouchableOpacity>
-        <Text style={styles.listItemNameStyle}>{item.title}</Text>     
-      </View>          
-    );
+  async function deleteButtonPressed({item}){    
+    try{
+      var respose = await fetch("http://localhost:8587/RemoveToDoItem",
+                              {
+                                method: "POST",
+                                headers:{"Accept":"application/json", "Content-Type":"application/json"},
+                                body: JSON.stringify(item.id)                                
+                              });
+      const newTasksList = allTasks.filter(x => x !== item);
+      setAllTasks(newTasksList);    
+      
 
+    }catch(error){
+      console.log(error);
+    }    
   }
 
-  function radioButtonPressed({item}){
-    const indexToRemove = allTasks.indexOf(item);
-    allTasks[indexToRemove].isCompleted = !allTasks[indexToRemove].isCompleted;
-    const updatedTasks = [...allTasks];
-    
-    setAllTasks(updatedTasks);  
+  function renderItem({item}){          
+    console.log("item rendering status:", item.isCompleted);
+
+      return(
+      
+        <View style={styles.listItemBorderStyle}>        
+
+            <TouchableOpacity style={styles.radioButton} onPress={() => radioButtonPressed({item})} activeOpacity={0.2}>  
+              {item.isCompleted ? <View style={styles.radioButtonPressed}></View> : null}
+            </TouchableOpacity>
+            <Text style={styles.listItemNameStyle}>{item.name}</Text>                      
+
+            <TouchableOpacity style={styles.deleteButton} onPress={() => deleteButtonPressed({item})}>              
+              <Text style={{textAlign: 'center', color: 'white', fontSize: 16, fontWeight: 'bold'}}>Delete</Text>
+            </TouchableOpacity>
+
+        </View>
+      );                
   }
 
+  async function radioButtonPressed({item}){    
+    try{
+      
+      console.log("radio button pressed of", item);
+      const newItem = {id: item.id, isCompleted: item.isCompleted};
+      newItem.isCompleted = !newItem.isCompleted;            
+      console.log("new item generated after radio button", {newItem});
+      console.log(!newItem.isCompleted);
+      
+
+      const response = await fetch("http://localhost:8587/ChangeStatusToDoItem", 
+                              {method: "POST", 
+                              headers: {"Content-Type":"application/json"}, 
+                              body: JSON.stringify(newItem)});
+
+      await console.log("response after sending new item", response.text());
+      
+
+      // Create a new array with the updated item
+    const newTasks = allTasks.map((task) =>
+    task.id === newItem.id ? newItem : task
+  );
+
+  // Update the state with the new array
+  setAllTasks(newTasks);
+  
+      
+    }catch(error){
+      console.log(error);
+    }    
+  }
 
   return (
     <View style={styles.container}>                        
@@ -84,9 +168,10 @@ export default function App() {
         <TouchableOpacity style={styles.circle} onPress={() => setPendingTask(true)}>
           <Text style={{fontSize: 38, color: "white", textAlign: 'center', alignContent: 'center', justifyContent: 'center', top: -2}}>+</Text>        
         </TouchableOpacity>      
+
         <View style={styles.headingContainer}>
           <Text style={{fontSize:25, fontWeight: 'bold'}}>To Do List Today</Text>
-          <Text style={{fontSize:15, right: 40, top: -5}}>{allTasks.length} tasks today</Text>
+          <Text style={{fontSize:15, right: 40, top: -5, backgroundColor: 'green'}}>tasks today</Text>
         </View>      
 
       </View>      
@@ -94,8 +179,7 @@ export default function App() {
       {pendingTask ? modalAddTask() : null}
       
       <FlatList style={styles.listStyle} data={allTasks} renderItem={({item}) => renderItem({item})} ></FlatList>    
-      
-      
+
     </View>
   );
 }
@@ -106,7 +190,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     alignItems: 'center',        
     height:"100%",    
-  },  
+  },    
+  deleteButton:{
+    backgroundColor: 'dodgerblue',    
+    width: 80,
+    height: 28,
+    borderRadius: 15,
+    top: 7.5,
+    justifyContent: 'center',            
+  },
   taskInput:{
     backgroundColor: '#E5eaea',
     margin: 20,
@@ -188,8 +280,7 @@ const styles = StyleSheet.create({
   listItemBorderStyle:{   
     display: 'flex',
     flexDirection: 'row',
-    alignContent:'center',
-    justifyContent: 'flex-start',    
+    alignContent:'center',    
     height:50,    
     borderRadius: 9,
     margin:5,
@@ -201,7 +292,8 @@ const styles = StyleSheet.create({
   listItemNameStyle:{    
     fontSize:20,
     top: 5,
-    right:-20,    
+    right:-20,
+    width: 250,    
   },
   radioButton:{
     height:30,
